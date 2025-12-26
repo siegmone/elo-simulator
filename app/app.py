@@ -1,0 +1,259 @@
+from math import sin, cos
+import numpy as np
+import random
+
+import dearpygui.dearpygui as dpg
+
+from simulation.simulation import Simulation, MatchEngine
+from simulation.player import Player
+
+
+players = [
+    Player("p1", 100, 115),
+    Player("p2", 100, 115),
+    Player("p3", 100, 115),
+    Player("p4", 100, 115),
+    Player("p5", 100, 115),
+    Player("p6", 100, 115),
+    Player("p7", 100, 115),
+]
+
+
+def update_plot(simulation):
+    y_axis_tag = "elo_plot_y_axis"
+
+    for name, history in simulation.get_history().items():
+        x = [v[0] for v in history]
+        y = [v[1] for v in history]
+
+        tag = f"series_{name}"
+
+        if not dpg.does_item_exist(tag):
+            dpg.add_line_series(
+                x, y,
+                label=name,
+                parent=y_axis_tag,
+                tag=tag,
+            )
+        else:
+            dpg.set_value(f"series_{name}", [x, y])
+
+
+def update_rank_table(simulation):
+    players = simulation.rankings()
+    for i, p in enumerate(players):
+        dpg.set_value(f"rank_{i}", f"{i + 1:3d}")
+        dpg.set_value(f"name_{i}", p.name)
+        dpg.set_value(f"elo_{i}", f"{p.elo:.1f}")
+        dpg.set_value(f"delta_{i}", f"{p.last_delta:.1f}")
+        if p.last_delta >= 0:
+            dpg.bind_item_theme(f"delta_{i}", "green_text")
+        else:
+            dpg.bind_item_theme(f"delta_{i}", "red_text")
+
+    # Clear unused rows
+    for i in range(len(players), 20):
+        dpg.set_value(f"rank_{i}", "")
+        dpg.set_value(f"name_{i}", "")
+        dpg.set_value(f"elo_{i}", "")
+        dpg.set_value(f"delta_{i}", "")
+
+
+class App:
+    def __init__(self, width: int, height: int):
+        rng = random.Random(42)
+
+        engine = MatchEngine(
+            k=10,
+            alpha=100,
+            luck=0.05,
+            rng=rng
+        )
+
+        self.sim = Simulation(players, engine)
+        self.width = width
+        self.height = height
+        self.n_rounds = 1
+        self.new_player = ""
+
+    def update_display_values(self):
+        update_rank_table(self.sim)
+        update_plot(self.sim)
+        dpg.set_value("avg_elo", f"Average Elo = {self.sim.avg_elo:.1f}")
+
+    def set_new_player(self, sender, app_data, user_data):
+        self.new_player = app_data
+
+    def add_player(self, sender, app_data, user_data):
+        self.sim.add_player(self.new_player)
+        self.update_display_values()
+
+    def on_next_round(self, sender, app_data, user_data):
+        self.sim.step_round()
+        self.update_display_values()
+
+    def on_simulate_rounds(self, sender, app_data, user_data):
+        self.sim.simulate_rounds(self.n_rounds)
+        self.update_display_values()
+
+    def get_n_rounds(self, sender, app_data, user_data):
+        self.n_rounds = app_data
+
+    def reset_simulation(self, sender, app_data, user_data):
+        self.sim.reset()
+        self.update_display_values()
+
+    def set_simulation_k(self, sender, app_data, user_data):
+        self.sim.set_k(app_data)
+
+    def set_simulation_alpha(self, sender, app_data, user_data):
+        self.sim.set_alpha(app_data)
+
+    def run(self):
+        # gui setup
+        dpg.create_context()
+        dpg.create_viewport(
+            title="Elo Simulator",
+            width=self.width, height=self.height,
+            resizable=False
+        )
+
+        with dpg.theme(tag="green_text"):
+            with dpg.theme_component(dpg.mvText):
+                dpg.add_theme_color(dpg.mvThemeCol_Text, (0, 255, 0))
+
+        with dpg.theme(tag="red_text"):
+            with dpg.theme_component(dpg.mvText):
+                dpg.add_theme_color(dpg.mvThemeCol_Text, (255, 0, 0))
+
+        # gui widgets
+        with dpg.window(label="Elo Simulator",
+                        width=self.width, height=self.height,
+                        autosize=True,
+                        no_resize=True,
+                        no_title_bar=True,
+                        no_move=True,
+                        no_scrollbar=True,
+                        no_collapse=True,
+                        no_close=True,
+                        no_background=False,
+                        modal=False,
+                        ) as window:
+            dpg.set_item_pos(window, [0, 0])
+
+            padding = 0.01
+            with dpg.group(horizontal=True):
+                with dpg.child_window(
+                    width=0.20 * self.width, resizable_x=True
+                ):
+                    with dpg.tree_node(label="Rankings"):
+                        width = max(len(p.name) for p in self.sim.players)
+                        for i, p in enumerate(self.sim.rankings()):
+                            dpg.add_text(
+                                f"{i + 1:3d}. {p.name:<{width}}  ({p.elo:.2f})"
+                            )
+                    with dpg.table(tag="ranking_table", header_row=True):
+                        dpg.add_table_column(label="Rank")
+                        dpg.add_table_column(label="Name")
+                        dpg.add_table_column(label="Elo")
+                        dpg.add_table_column(label="Delta")
+
+                        for i in range(max(len(players), 100)):  # max players
+                            with dpg.table_row(tag=f"rank_row_{i}"):
+                                dpg.add_text("", tag=f"rank_{i}")
+                                dpg.add_text("", tag=f"name_{i}")
+                                dpg.add_text("", tag=f"elo_{i}")
+                                dpg.add_text("", tag=f"delta_{i}")
+
+                        for i, p in enumerate(players):
+                            dpg.set_value(f"rank_{i}", f"{i + 1:3d}")
+                            dpg.set_value(f"name_{i}", p.name)
+                            dpg.set_value(f"elo_{i}", f"{p.elo:.1f}")
+                            dpg.set_value(f"delta_{i}", f"{0:.1f}")
+
+                with dpg.child_window(
+                    width=-0.20 * self.width, resizable_x=True
+                ):
+                    with dpg.plot(
+                        label="Elo Progression",
+                        tag="elo_plot_axis",
+                        width=-padding * self.width,
+                        height=-padding * self.height
+                    ) as plot:
+                        dpg.set_item_pos(
+                            plot, [padding * self.width, padding * self.height]
+                        )
+                        dpg.add_plot_legend()
+                        with dpg.plot_axis(
+                            dpg.mvXAxis, label="Matches", auto_fit=True,
+                            tag="elo_plot_x_axis",
+                        ):
+                            pass
+                        with dpg.plot_axis(
+                            dpg.mvYAxis, label="Elo", auto_fit=True,
+                            tag="elo_plot_y_axis",
+                        ):
+                            for name, values in self.sim.get_history().items():
+                                dpg.add_line_series(
+                                    [v[0] for v in values],
+                                    [v[1] for v in values],
+                                    label=name, tag=f"series_{name}"
+                                )
+                with dpg.child_window(
+                    width=0.25 * self.width, autosize_x=True
+                ):
+                    dpg.add_text(
+                        f"Average Elo = {self.sim.avg_elo:.1f}",
+                        tag="avg_elo"
+                    )
+                    dpg.add_button(
+                        label="Next Round", callback=self.on_next_round, user_data=self.sim
+                    )
+
+                    with dpg.group(horizontal=True):
+                        dpg.add_button(
+                            label="Simulate Rounds",
+                            callback=self.on_simulate_rounds
+                        )
+                        dpg.add_input_int(
+                            label="Number of Rounds",
+                            tag="n_rounds", width=100,
+                            default_value=self.n_rounds,
+                            callback=self.get_n_rounds,
+                        )
+
+                    with dpg.group(horizontal=True):
+                        dpg.add_input_text(
+                            label="",
+                            callback=self.set_new_player
+                        )
+                        dpg.add_button(
+                            label="Add Player",
+                            callback=self.add_player,
+                        )
+
+                    with dpg.tree_node(label="Settings", default_open=True):
+                        dpg.add_button(
+                            label="Reset",
+                            callback=self.reset_simulation,
+                        )
+                        dpg.add_input_float(
+                            label="k",
+                            tag="k", width=100,
+                            default_value=self.sim.engine.k,
+                            callback=self.set_simulation_k,
+                        )
+                        dpg.add_input_float(
+                            label="alpha",
+                            tag="alpha", width=100,
+                            default_value=self.sim.engine.alpha,
+                            callback=self.set_simulation_alpha,
+                        )
+
+        # gui render
+        dpg.setup_dearpygui()
+        dpg.show_viewport()
+        dpg.start_dearpygui()
+
+        # gui end
+        dpg.stop_dearpygui()
