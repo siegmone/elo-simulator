@@ -1,5 +1,3 @@
-from math import sin, cos
-import numpy as np
 import random
 
 import dearpygui.dearpygui as dpg
@@ -9,13 +7,13 @@ from simulation.player import Player
 
 
 players = [
-    Player("p1", 100, 115),
-    Player("p2", 100, 115),
-    Player("p3", 100, 115),
-    Player("p4", 100, 115),
-    Player("p5", 100, 115),
-    Player("p6", 100, 115),
-    Player("p7", 100, 115),
+    Player("p1", 100, 100),
+    Player("p2", 90, 100),
+    Player("p3", 80, 100),
+    Player("p4", 70, 100),
+    Player("p5", 60, 100),
+    Player("p6", 50, 100),
+    Player("p7", 40, 100),
 ]
 
 
@@ -105,9 +103,15 @@ class App:
 
     def set_simulation_k(self, sender, app_data, user_data):
         self.sim.set_k(app_data)
+        self.reset_simulation(sender, app_data, user_data)
+        self.on_simulate_rounds(sender, app_data, user_data)
 
     def set_simulation_alpha(self, sender, app_data, user_data):
+        if app_data <= 0:
+            app_data = 1
         self.sim.set_alpha(app_data)
+        self.reset_simulation(sender, app_data, user_data)
+        self.on_simulate_rounds(sender, app_data, user_data)
 
     def run(self):
         # gui setup
@@ -146,12 +150,6 @@ class App:
                 with dpg.child_window(
                     width=0.20 * self.width, resizable_x=True
                 ):
-                    with dpg.tree_node(label="Rankings"):
-                        width = max(len(p.name) for p in self.sim.players)
-                        for i, p in enumerate(self.sim.rankings()):
-                            dpg.add_text(
-                                f"{i + 1:3d}. {p.name:<{width}}  ({p.elo:.2f})"
-                            )
                     with dpg.table(tag="ranking_table", header_row=True):
                         dpg.add_table_column(label="Rank")
                         dpg.add_table_column(label="Name")
@@ -185,7 +183,7 @@ class App:
                         )
                         dpg.add_plot_legend()
                         with dpg.plot_axis(
-                            dpg.mvXAxis, label="Matches", auto_fit=True,
+                            dpg.mvXAxis, label="Rounds", auto_fit=True,
                             tag="elo_plot_x_axis",
                         ):
                             pass
@@ -240,13 +238,19 @@ class App:
                         dpg.add_input_float(
                             label="k",
                             tag="k", width=100,
+                            format="%.0f",
                             default_value=self.sim.engine.k,
+                            min_value=1,
+                            step=1,
                             callback=self.set_simulation_k,
                         )
                         dpg.add_input_float(
                             label="alpha",
                             tag="alpha", width=100,
+                            format="%.0f",
                             default_value=self.sim.engine.alpha,
+                            min_value=1,
+                            step=1,
                             callback=self.set_simulation_alpha,
                         )
 

@@ -12,6 +12,7 @@ AVERAGE_ELO = 1000
 DEFAULT_K = 10
 DEFAULT_ALPHA = 100
 DEFAULT_LUCK = 0.05
+DEFAULT_SEED = 42
 
 
 class MatchEngine:
@@ -65,12 +66,13 @@ class Simulation:
         self.schedule = RoundRobinSchedule(self.players)
 
     def reset(self):
+        self.engine.rng = random.Random(DEFAULT_SEED)
+        self.round = 0
         self.players = copy.deepcopy(self.start_players)
         self.history: Dict[str, List[Tuple[int, float]]] = {
             p.name: [(self.round, p.elo)] for p in self.players
         }
         self.schedule = RoundRobinSchedule(self.players)
-        self.round = 0
 
     def set_k(self, k: float):
         self.engine.k = k
