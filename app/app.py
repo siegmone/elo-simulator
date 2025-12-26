@@ -2,18 +2,21 @@ import random
 
 import dearpygui.dearpygui as dpg
 
-from simulation.simulation import Simulation, MatchEngine
+from simulation.simulation import Simulation, MatchEngine, DEFAULT_SEED, DEFAULT_ALPHA, DEFAULT_K
 from simulation.player import Player
+from simulation.pairings import PairingMode
 
 
 players = [
-    Player("p1", 100, 100),
-    Player("p2", 90, 100),
-    Player("p3", 80, 100),
-    Player("p4", 70, 100),
-    Player("p5", 60, 100),
-    Player("p6", 50, 100),
-    Player("p7", 40, 100),
+    # Player("p1", 100, 100),
+    # Player("p2", 90, 100),
+    # Player("p3", 80, 100),
+    # Player("p4", 70, 100),
+    # Player("p5", 60, 100),
+    # Player("p6", 50, 100),
+    # Player("p7", 40, 100),
+    # Player("p8", 30, 100),
+    Player(f"p{i}", random.uniform(0, 100), 100) for i in range(100)
 ]
 
 
@@ -59,11 +62,11 @@ def update_rank_table(simulation):
 
 class App:
     def __init__(self, width: int, height: int):
-        rng = random.Random(42)
+        rng = random.Random(DEFAULT_SEED)
 
         engine = MatchEngine(
-            k=10,
-            alpha=100,
+            k=DEFAULT_K,
+            alpha=DEFAULT_ALPHA,
             luck=0.05,
             rng=rng
         )
@@ -71,7 +74,7 @@ class App:
         self.sim = Simulation(players, engine)
         self.width = width
         self.height = height
-        self.n_rounds = 1
+        self.n_rounds = 10
         self.new_player = ""
 
     def update_display_values(self):
@@ -113,6 +116,11 @@ class App:
         self.reset_simulation(sender, app_data, user_data)
         self.on_simulate_rounds(sender, app_data, user_data)
 
+    def set_pairing_mode(self, sender, app_data, user_data):
+        self.sim.set_pairing_mode(app_data)
+        self.reset_simulation(sender, app_data, user_data)
+        self.on_simulate_rounds(sender, app_data, user_data)
+
     def run(self):
         # gui setup
         dpg.create_context()
@@ -121,6 +129,9 @@ class App:
             width=self.width, height=self.height,
             resizable=False
         )
+
+        # initial simulation
+        self.sim.simulate_rounds(self.n_rounds)
 
         with dpg.theme(tag="green_text"):
             with dpg.theme_component(dpg.mvText):
@@ -204,9 +215,14 @@ class App:
                         f"Average Elo = {self.sim.avg_elo:.1f}",
                         tag="avg_elo"
                     )
-                    dpg.add_button(
-                        label="Next Round", callback=self.on_next_round, user_data=self.sim
-                    )
+                    with dpg.group(horizontal=True):
+                        dpg.add_button(
+                            label="Next Round", callback=self.on_next_round, user_data=self.sim
+                        )
+                        dpg.add_button(
+                            label="Reset",
+                            callback=self.reset_simulation,
+                        )
 
                     with dpg.group(horizontal=True):
                         dpg.add_button(
@@ -231,10 +247,19 @@ class App:
                         )
 
                     with dpg.tree_node(label="Settings", default_open=True):
-                        dpg.add_button(
-                            label="Reset",
-                            callback=self.reset_simulation,
-                        )
+
+                        with dpg.tree_node(
+                            label="Pairing Mode", default_open=True,
+                            bullet=True,
+                        ):
+                            dpg.add_radio_button(
+                                items=[m.name for m in PairingMode],
+                                default_value=self.sim.pairing_mode,
+                                callback=self.set_pairing_mode,
+                                horizontal=True,
+                                tag="pairing_mode_selector"
+                            )
+
                         dpg.add_input_float(
                             label="k",
                             tag="k", width=100,

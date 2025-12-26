@@ -5,7 +5,7 @@ import copy
 from typing import List, Dict, Tuple
 from .player import Player
 from .elo import delta_elo, expected_score
-from .pairings import RoundRobinSchedule
+from .pairings import PairingMode, RoundRobinSchedule, SwissSchedule
 
 
 AVERAGE_ELO = 1000
@@ -48,8 +48,16 @@ class Simulation:
         self.history: Dict[str, List[Tuple[int, float]]] = {
             p.name: [(self.round, p.elo)] for p in self.players
         }
+        self.pairing_mode = PairingMode.ROUND_ROBIN
         self.schedule = RoundRobinSchedule(self.players)
         self.avg_elo = np.mean([p.elo for p in self.players])
+
+    def set_pairing_mode(self, mode: PairingMode):
+        if mode == PairingMode.ROUND_ROBIN:
+            self.schedule = RoundRobinSchedule(self.players)
+        elif mode == PairingMode.SWISS:
+            self.schedule = SwissSchedule(self.players)
+        self.pairing_mode = mode
 
     def add_player(self, player_name: str):
         avg_elo = np.mean([p.elo for p in self.players])
